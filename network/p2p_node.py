@@ -1,12 +1,14 @@
+# network/p2p_node.py
 import socket
-import threading
-from network.file_transfer import send_file, receive_file
-from network.discovery import get_my_ip
+from crypto.encryption import encrypt_file, decrypt_file, generate_file_hash
 
 class P2PNode:
-    def __init__(self, user):
-        self.user = user
-        self.port = 5000  # Default port for hosting
+    def __init__(self, username):
+        self.username = username
+        self.server_socket = None
+        self.peer_socket = None
+        self.peer_address = None
+        self.port = 5000
 
     def run(self):
         choice = input("1. Host a session\n2. Join a session\nChoose option: ")
@@ -14,34 +16,36 @@ class P2PNode:
             self.host_session()
         elif choice == "2":
             self.join_session()
+        else:
+            print("Invalid choice. Returning to main menu.")
 
     def host_session(self):
         print("Hosting a session...")
         try:
-            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server.bind(('', self.port))  # Bind to all available interfaces
-            server.listen(5)
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.bind(('', self.port))
+            self.server_socket.listen(1)
             print(f"Server is listening on port {self.port}...")
-            conn, addr = server.accept()
+            conn, addr = self.server_socket.accept()
             print(f"Connection established with {addr}")
-            self.handle_connection(conn)
+            self.handle_peer_connection(conn)
         except Exception as e:
             print(f"An error occurred while hosting: {e}")
+        finally:
+            if self.server_socket:
+                self.server_socket.close()
 
     def join_session(self):
-        peer_ip = input("Enter peer IP (e.g., 192.168.8.179:5000): ")
+        peer_input = input("Enter peer IP and port (e.g., 192.168.8.179:5000): ")
         try:
-            # Split IP and port
-            if ":" not in peer_ip:
-                raise ValueError("Invalid IP format. Please use the format IP:PORT.")
-            ip, port = peer_ip.split(":")
-            port = int(port)
-
-            # Create a socket and connect
-            conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            conn.connect((ip, port))
-            print(f"Connected to peer at {ip}:{port}")
-            self.handle_connection(conn)
+            if ":" not in peer_input:
+                raise ValueError("Invalid format. Please use the format IP:PORT.")
+            peer_ip, peer_port = peer_input.split(":")
+            peer_port = int(peer_port)
+            self.peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.peer_socket.connect((peer_ip, peer_port))
+            print(f"Connected to peer at {peer_ip}:{peer_port}")
+            self.handle_peer_connection(self.peer_socket)
         except ValueError as ve:
             print(ve)
         except socket.gaierror:
@@ -49,19 +53,61 @@ class P2PNode:
         except ConnectionRefusedError:
             print("Connection refused. Ensure the host is running a session and the IP/port are correct.")
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred while joining: {e}")
+        finally:
+            if self.peer_socket:
+                self.peer_socket.close()
 
-    def handle_connection(self, conn):
+    def handle_peer_connection(self, conn):
         while True:
-            print("1. Send File")
-            print("2. Receive File")
-            print("3. Exit")
-            choice = input("Choice: ")
-            if choice == '1':
-                filename = input("Enter path of file to send: ")
-                send_file(conn, filename)
-            elif choice == '2':
-                receive_file(conn)
-            else:
+            action = input("1. Send a file\n2. Receive a file\n3. Exit\nChoose option: ")
+            if action == "1":
+                file_path = input("Enter the path of the file to send: ")
+                self.send_file(file_path, conn)
+            elif action == "2":
+                self.receive_file(conn)
+            elif action == "3":
+                print("Exiting session.")
                 break
-        conn.close()
+            else:
+                print("Invalid option. Please try again.")
+
+    def send_file(self, file_path, conn):
+        try:
+            encrypted_file = encrypt_file(file_path)
+            file_hash = generate_file_hash(file_path)
+            conn.sendall(file_hash.encode())
+            print(f"Sent file hash: {file_hash}")
+            with open(encrypted_file, 'rb') as f:
+                while chunk := f.read(1024):
+                    conn.sendall(chunk)
+            conn.sendall(b"EOF")
+            print(f"Sent encrypted file: {file_path}")
+        except Exception as e:
+            print(f"An error occurred while sending the file: {e}")
+
+    def receive_file(self, conn):
+        try:
+            print("Waiting to receive file...")
+            received_hash = conn.recv(64).decode()
+            print(f"Received file hash: {received_hash}")
+            encrypted_file_path = "received_file.enc"
+            with open(encrypted_file_path, 'wb') as f:
+                while True:
+                    chunk = conn.recv(1024)
+                    if chunk.endswith(b"EOF"):
+                        f.write(chunk[:-3])
+                        break
+                    f.write(chunk)
+                    print(f"Received chunk of size: {len(chunk)}")
+            print(f"Encrypted file received and saved as: {encrypted_file_path}")
+            print("Starting decryption...")
+            decrypted_file_path = decrypt_file(encrypted_file_path)
+            print(f"Decrypted file saved as: {decrypted_file_path}")
+            calculated_hash = generate_file_hash(decrypted_file_path)
+            if calculated_hash == received_hash:
+                print("File integrity verified!")
+            else:
+                print("File integrity verification failed!")
+        except Exception as e:
+            print(f"An error occurred while receiving the file: {e}")

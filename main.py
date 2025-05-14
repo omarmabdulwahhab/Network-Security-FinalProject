@@ -1,8 +1,9 @@
+# main.py
+import os
 from auth.user_manager import UserManager
 from auth.session_manager import SessionManager
 from network.p2p_node import P2PNode
 from shared.utils import menu
-import os
 
 def run():
     user_manager = UserManager()
@@ -13,6 +14,7 @@ def run():
             "Register",
             "Login",
             "Start P2P Node (Host/Join)",
+            "Logout",
             "Exit"
         ])
 
@@ -28,6 +30,9 @@ def run():
                 continue
             node = P2PNode(session_manager.get_logged_in_user())
             node.run()
+        elif choice == 4:
+            session_manager.logout()
+            print("Logged out successfully.")
         else:
             print("Goodbye!")
             break

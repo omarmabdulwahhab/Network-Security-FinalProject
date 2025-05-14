@@ -1,1 +1,4 @@
-[{"username": "omarabdulwahhab", "password": "admin123"}, {"username": "omarabdulwahhab1", "password": "admin123"}]
+{"omarabdulwahhab": {"hash": "2c95109e78ae4681f94b5fa90c2134132e2ba2a75cb962dc36ee6eb8337eaea8",
+ "salt": "fbd9cdc2d09254c7ca9b664b3cc70ea2"}, 
+"omarabdulwahhab1": {"hash": "80059ee2bcb74770d64fbadcc6f5ce3aeac4f73c63956f98c920959bf285651f", 
+"salt": "d147d5443e27c3a207f9029d53675939"}}

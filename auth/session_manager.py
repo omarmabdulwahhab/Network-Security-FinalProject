@@ -5,6 +5,9 @@ class SessionManager:
     def login(self, username):
         self.logged_in_user = username
 
+    def logout(self):
+        self.logged_in_user = None
+
     def is_logged_in(self):
         return self.logged_in_user is not None
 
